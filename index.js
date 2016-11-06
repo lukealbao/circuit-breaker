@@ -43,6 +43,8 @@ function CircuitBreaker (opts) {
     this.halfOpenCheck = opts.halfOpenCheck;
   }
 
+  Object.defineProperty(this, '_state', {enumerable: false});
+
   Object.defineProperty(this, 'state', {
     enumerable: true,
     configurable: false,
@@ -54,6 +56,21 @@ function CircuitBreaker (opts) {
 }
 
 util.inherits(CircuitBreaker, EventEmitter);
+
+CircuitBreaker.prototype.inspect = function () {
+  return {
+    state: this.state,
+    errorHandling: {
+      current: this.errorCount,
+      max: this.maxFailures
+    },
+    resetTimeout: {
+      min: this.minResetTimeout,
+      current: this.resetTimeout,
+      max: this.maxResetTimeout
+    }
+  };
+};
 
 CircuitBreaker.prototype.open = function () {
   debug('open');
