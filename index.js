@@ -47,13 +47,6 @@ function CircuitBreaker (opts) {
     enumerable: true,
     configurable: false,
     get: function () {
-      var states = {
-        0: 'CLOSED',
-        1: 'OPEN',
-        2: 'HALF_OPEN',
-        3: 'HALF_CLOSED'
-      };
-
       return self._state;
     },
     set: function () { throw new TypeError('You cannot set state directly'); }
@@ -62,17 +55,10 @@ function CircuitBreaker (opts) {
 
 util.inherits(CircuitBreaker, EventEmitter);
 
-CircuitBreaker.prototype._states = {
-  CLOSED: 0,
-  OPEN: 1,
-  HALF_OPEN: 2,
-  HALF_CLOSED: 3
-};
-
 CircuitBreaker.prototype.open = function () {
   debug('open');
   var self = this;
-  this._state = this._states.OPEN;
+  this._state = 'OPEN';
   this.emit('open');
   this.resetTimeout = Math.min(this.maxResetTimeout,
                                this.resetTimeout * 2);
@@ -100,7 +86,7 @@ CircuitBreaker.prototype.open = function () {
 
 CircuitBreaker.prototype.close = function () {
   debug('close');
-  this._state = this._states.CLOSED;
+  this._state = 'CLOSED';
   this.errorCount = 0;
   this.resetTimeout = this.minResetTimeout;
   this.emit('close');
@@ -108,13 +94,13 @@ CircuitBreaker.prototype.close = function () {
 
 CircuitBreaker.prototype.halfOpen = function () {
   debug('halfOpen');
-  this._state = this._states.HALF_OPEN;
+  this._state = 'HALF_OPEN';
   this.emit('halfOpen');
 };
 
 CircuitBreaker.prototype.halfClose = function () {
   debug('halfClose');
-  this._state = this._states.HALF_CLOSED;
+  this._state = 'HALF_CLOSED';
   this.emit('halfClose');
 };
 
@@ -124,11 +110,11 @@ CircuitBreaker.prototype.execute = function (fn) {
   var args = Array.prototype.slice.call(arguments, 1);
 
   switch (self.state) {
-    case self._states.OPEN:
-    case self._states.HALF_CLOSED:    
+    case 'OPEN':
+    case 'HALF_CLOSED':    
     return Promise.reject(new this.CircuitOpenError());
 
-    case this._states.HALF_OPEN:
+    case 'HALF_OPEN':
     this.halfClose();
     return Promise.resolve(fn.apply(null, args)).timeout(self.callTimeout)
            .then(function closeAndResolve (value) {
@@ -138,7 +124,7 @@ CircuitBreaker.prototype.execute = function (fn) {
            })
            .catch(self.onError.bind(self));
 
-    case this._states.CLOSED:
+    case 'CLOSED':
     default:
     return Promise.resolve(fn.apply(null, args)).timeout(self.callTimeout)
            .catch(self.onError.bind(self));

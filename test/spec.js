@@ -95,7 +95,7 @@ describe('CircuitBreaker.execute(Promise) -> Promise', function () {
       circuit.retryTimeout = 60e3;
       circuit.open();          
       clock.tick(60e3);
-      expect(circuit.state).to.equal(circuit._states.HALF_OPEN);
+      expect(circuit.state).to.equal('HALF_OPEN');
       
       return circuit.execute(() => Promise.resolve('Ok'))
              .then(function (value) {
@@ -130,7 +130,7 @@ describe('CircuitBreaker.execute(Promise) -> Promise', function () {
       circuit.maxFailures = 0;
       return circuit.execute(() => Promise.reject(new Error(1)))
              .catch(function () {
-               expect(circuit.state).to.equal(circuit._states.OPEN);
+               expect(circuit.state).to.equal('OPEN');
              });
     });
 
@@ -138,39 +138,39 @@ describe('CircuitBreaker.execute(Promise) -> Promise', function () {
       circuit.resetTimeout = 5 * 60e3;
       circuit.open();
 
-      expect(circuit.state).to.equal(circuit._states.OPEN);
+      expect(circuit.state).to.equal('OPEN');
       clock.tick(5 * 60e3);
-      expect(circuit.state).to.equal(circuit._states.HALF_OPEN);
+      expect(circuit.state).to.equal('HALF_OPEN');
     });
 
     it('[HALF_OPEN -> HALF_CLOSED] while retry is in flight', () => {
       circuit.halfOpen();
 
-      expect(circuit.state).to.equal(circuit._states.HALF_OPEN);
+      expect(circuit.state).to.equal('HALF_OPEN');
       circuit.execute(() => Promise.resolve('Ok'));
-      expect(circuit.state).to.equal(circuit._states.HALF_CLOSED);
+      expect(circuit.state).to.equal('HALF_CLOSED');
     });
 
     it('[HALF_OPEN -> OPEN] if retry fails', () => {
       circuit.maxFailures = 0;
       circuit.halfOpen();
 
-      expect(circuit.state).to.equal(circuit._states.HALF_OPEN);
+      expect(circuit.state).to.equal('HALF_OPEN');
       return circuit.execute(() => Promise.reject(new Error('Testing Error')))
         .catch(function () {
-          expect(circuit.state).to.equal(circuit._states.OPEN);
+          expect(circuit.state).to.equal('OPEN');
         });
     });
 
     it('[HALF_OPEN -> HALF_CLOSED -> CLOSED] if retry succeeds', () => {
       circuit.halfOpen();
 
-      expect(circuit.state).to.equal(circuit._states.HALF_OPEN);
+      expect(circuit.state).to.equal('HALF_OPEN');
       var p = circuit.execute(() => Promise.resolve('Ok'));
-      expect(circuit.state).to.equal(circuit._states.HALF_CLOSED);
+      expect(circuit.state).to.equal('HALF_CLOSED');
 
       return p.then(function () {
-        expect(circuit.state).to.equal(circuit._states.CLOSED);
+        expect(circuit.state).to.equal('CLOSED');
       });
     });
   });
