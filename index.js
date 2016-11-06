@@ -9,14 +9,14 @@ function CircuitBreaker (opts) {
   var self = this;
   opts = opts || {};
   EventEmitter.call(this, opts);
-  
+
   this.maxFailures = opts.maxFailures === undefined
                    ? 5
                    : opts.maxFailures;
 
   // resetTimeout :: The amount of time to wait after tripping the
   // circuit before trying to close it. (In milliseconds.)
-  this.minResetTimeout = opts.resetTimeout || 500;
+  this.minResetTimeout = Math.max( 1, opts.resetTimeout || 500);
   this.maxResetTimeout = 5 * 60e3;
   this.resetTimeout = this.minResetTimeout;
 
@@ -88,7 +88,7 @@ CircuitBreaker.prototype.open = function () {
            // Any implementation of halfOpenCheck should return
            // a Boolean indicating whether we should transition
            // to HALF_OPEN.
-           
+
            if (ok) {
              return self.halfOpen();
            } else {
@@ -96,8 +96,7 @@ CircuitBreaker.prototype.open = function () {
            }
          })
          .catch(function (err) {
-           self.emit('error', err);
-           return self.open();
+           return self.onError(err);
          });
 };
 
@@ -127,11 +126,11 @@ CircuitBreaker.prototype.execute = function (fn) {
   var args = Array.prototype.slice.call(arguments, 1);
 
   switch (self.state) {
-    case 'OPEN':
-    case 'HALF_CLOSED':    
+  case 'OPEN':
+  case 'HALF_CLOSED':
     return Promise.reject(new this.CircuitOpenError());
 
-    case 'HALF_OPEN':
+  case 'HALF_OPEN':
     this.halfClose();
     return Promise.resolve(fn.apply(null, args)).timeout(self.callTimeout)
            .then(function closeAndResolve (value) {
@@ -141,8 +140,8 @@ CircuitBreaker.prototype.execute = function (fn) {
            })
            .catch(self.onError.bind(self));
 
-    case 'CLOSED':
-    default:
+  case 'CLOSED':
+  default:
     return Promise.resolve(fn.apply(null, args)).timeout(self.callTimeout)
            .catch(self.onError.bind(self));
   }
