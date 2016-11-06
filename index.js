@@ -3,16 +3,22 @@
 var Promise = require('bluebird');
 var EventEmitter = require('events').EventEmitter;
 var util = require('util');
+var debug = util.debuglog('circuit');
 
 function CircuitBreaker (opts) {
+  var self = this;
   opts = opts || {};
   EventEmitter.call(this, opts);
   
-  this.maxFailures = opts.maxFailures || 5;
+  this.maxFailures = opts.maxFailures === undefined
+                   ? 5
+                   : opts.maxFailures;
 
   // resetTimeout :: The amount of time to wait after tripping the
-  // circuit before trying to close it.
-  this.resetTimeout = opts.resetTimeout || 1 * 60e3;
+  // circuit before trying to close it. (In milliseconds.)
+  this.minResetTimeout = opts.resetTimeout || 500;
+  this.maxResetTimeout = 5 * 60e3;
+  this.resetTimeout = this.minResetTimeout;
 
   // callTimeout :: The amount of time an operation should wait
   // before being considered an error.
@@ -36,14 +42,25 @@ function CircuitBreaker (opts) {
   if (typeof opts.halfOpenCheck === 'function') {
     this.halfOpenCheck = opts.halfOpenCheck;
   }
+
+  Object.defineProperty(this, 'state', {
+    enumerable: true,
+    configurable: false,
+    get: function () {
+      var states = {
+        0: 'CLOSED',
+        1: 'OPEN',
+        2: 'HALF_OPEN',
+        3: 'HALF_CLOSED'
+      };
+
+      return self._state;
+    },
+    set: function () { throw new TypeError('You cannot set state directly'); }
+  });
 }
 
 util.inherits(CircuitBreaker, EventEmitter);
-
-Object.defineProperty(CircuitBreaker.prototype, 'state', {
-  get: function () { return this._state; },
-  set: function () { throw new TypeError('You cannot set state directly'); }
-});
 
 CircuitBreaker.prototype._states = {
   CLOSED: 0,
@@ -53,9 +70,12 @@ CircuitBreaker.prototype._states = {
 };
 
 CircuitBreaker.prototype.open = function () {
+  debug('open');
   var self = this;
   this._state = this._states.OPEN;
   this.emit('open');
+  this.resetTimeout = Math.min(this.maxResetTimeout,
+                               this.resetTimeout * 2);
 
   return Promise.delay(self.resetTimeout)
          .then(function () {
@@ -79,41 +99,48 @@ CircuitBreaker.prototype.open = function () {
 };
 
 CircuitBreaker.prototype.close = function () {
+  debug('close');
   this._state = this._states.CLOSED;
   this.errorCount = 0;
+  this.resetTimeout = this.minResetTimeout;
   this.emit('close');
 };
 
 CircuitBreaker.prototype.halfOpen = function () {
+  debug('halfOpen');
   this._state = this._states.HALF_OPEN;
   this.emit('halfOpen');
 };
 
 CircuitBreaker.prototype.halfClose = function () {
+  debug('halfClose');
   this._state = this._states.HALF_CLOSED;
   this.emit('halfClose');
 };
 
-CircuitBreaker.prototype.execute = function (promise) {
+CircuitBreaker.prototype.execute = function (fn) {
+  debug('execute: %d - %d', this.maxFailures, this.errorCount);
   var self = this;
+  var args = Array.prototype.slice.call(arguments, 1);
 
   switch (self.state) {
-  case self._states.OPEN:
-  case self._states.HALF_CLOSED:
+    case self._states.OPEN:
+    case self._states.HALF_CLOSED:    
     return Promise.reject(new this.CircuitOpenError());
 
-  case this._states.HALF_OPEN:
+    case this._states.HALF_OPEN:
     this.halfClose();
-    return promise.timeout(self.callTimeout)
+    return Promise.resolve(fn.apply(null, args)).timeout(self.callTimeout)
            .then(function closeAndResolve (value) {
+             debug('closeAndResolve');
              self.close();
              return value;
            })
            .catch(self.onError.bind(self));
 
-  case this._states.CLOSED:
-  default:
-    return promise.timeout(self.callTimeout)
+    case this._states.CLOSED:
+    default:
+    return Promise.resolve(fn.apply(null, args)).timeout(self.callTimeout)
            .catch(self.onError.bind(self));
   }
 };
@@ -136,10 +163,12 @@ CircuitBreaker.prototype.halfOpenCheck = function () {
   // which should be interpreted as, "Should we transition to HALF_OPEN?"
   //
   // By default, any resetTimeout will transition to HALF_OPEN.
+  debug('Default halfOpenCheck');
   return Promise.resolve(true);
 };
 
 CircuitBreaker.prototype.onError = function (error) {
+  debug('onError');
   if (++this.errorCount > this.maxFailures
     && this.errorMatch(error)
     && !this.errorIgnore(error)) {
