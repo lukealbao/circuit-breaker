@@ -171,9 +171,9 @@ CircuitBreaker.prototype.halfOpenCheck = function () {
 
 CircuitBreaker.prototype.onError = function (error) {
   debug('onError');
-  if (++this.errorCount > this.maxFailures
-    && this.errorMatch(error)
-    && !this.errorIgnore(error)) {
+  if (this.errorMatch(error)
+    && !this.errorIgnore(error)
+    && ++this.errorCount > this.maxFailures) {
     this.open();
   }
 

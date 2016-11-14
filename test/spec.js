@@ -274,3 +274,30 @@ describe('CircuitBreaker.close()', function () {
     expect(circuit.resetTimeout).to.equal(circuit.minResetTimeout);
   });
 });
+
+
+describe('Predicate Functions', function () {
+  describe('errorMatch', function () {
+    it('Does not add to errorCount if error does not match', () => {
+      var circuit = new CircuitBreaker({
+        errorMatch: (err) => (err.statusCode && err.statusCode >= 500)
+      });
+
+      var clientError = new Error('ClientError');
+      clientError.statusCode = 400;
+      var connectionError = new Error('ConnectionError');
+
+      return circuit.execute(Promise.reject, clientError)
+        .catch(function (err) {
+          expect(err).to.match(/ClientError/);
+          return circuit.execute(Promise.reject, connectionError);
+        })
+        .catch(function (err) {
+          expect(err).to.match(/ConnectionError/);
+        })
+        .finally(function () {          
+          expect(circuit.errorCount).to.equal(0);
+        });
+    });
+  });
+});
