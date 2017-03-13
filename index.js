@@ -17,7 +17,7 @@ function CircuitBreaker (opts) {
   // resetTimeout :: The amount of time to wait after tripping the
   // circuit before trying to close it. (In milliseconds.)
   this.minResetTimeout = Math.max( 1, opts.resetTimeout || 500);
-  this.maxResetTimeout = 5 * 60e3;
+  this.maxResetTimeout = opts.maxResetTimeout || 5 * 60e3;
   this.resetTimeout = this.minResetTimeout;
 
   // callTimeout :: The amount of time an operation should wait
@@ -121,7 +121,7 @@ CircuitBreaker.prototype.halfClose = function () {
 };
 
 CircuitBreaker.prototype.execute = function (fn) {
-  debug('execute: %d - %d', this.maxFailures, this.errorCount);
+  debug('execute(%s): %d - %d', this._state, this.maxFailures, this.errorCount);
   var self = this;
   var args = Array.prototype.slice.call(arguments, 1);
 

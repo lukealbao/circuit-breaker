@@ -17,6 +17,7 @@ options:
 |----------|----------|----------|
 |maxFailures|The number of errors that trips the circuit|5|
 |resetTimeout|Initial timeout to wait before attempting to close an open circuit (in ms)|500|
+|maxResetTimeout|Maximum time to wait befor attempting to close (ms)|5mins|
 |callTimeout|Amount of time each operation should be allowed before rejecting as a timeout (in ms)|5000|
 |errorMatch|Predicate function to match handle only certain errors| `() => true`|
 |errorIgnore|Predicate function to ignore certain errors| `() => false`|
