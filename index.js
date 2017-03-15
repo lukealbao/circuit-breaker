@@ -128,7 +128,8 @@ CircuitBreaker.prototype.execute = function (fn) {
   switch (self.state) {
   case 'OPEN':
   case 'HALF_CLOSED':
-    return Promise.reject(new this.CircuitOpenError());
+    return Promise.reject(new this.CircuitOpenError())
+      .catch(self.onError.bind(self));
 
   case 'HALF_OPEN':
     this.halfClose();

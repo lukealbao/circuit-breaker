@@ -122,6 +122,25 @@ describe('CircuitBreaker.execute(Promise) -> Promise', function () {
           sinon.assert.notCalled(spy);
         });
     });
+
+    it('Attempts to enter HALF_OPEN after HALF_CLOSED', () => {
+      circuit.halfClose();
+      circuit.errorCount = circuit.maxFailures + 1;
+
+      sandbox.spy(circuit, 'halfOpenCheck');
+
+      return circuit
+        .execute(pass)
+        .catch(() => {
+          return new Promise(resolve => {
+            setTimeout(resolve, 1000);
+            clock.tick(1000);
+          });
+        })
+        .then(() => {
+          sinon.assert.calledOnce(circuit.halfOpenCheck);
+        });
+    });
   });
 
   describe('State Changes', () => {
